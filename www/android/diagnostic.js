@@ -13,10 +13,6 @@ var Diagnostic = (function(){
      *********************/
     var Diagnostic = {};
 
-    var runtimeStoragePrefix = "__diag_rtm_";
-
-    var runtimeGroupsMap;
-
     // Indicates if a runtime permissions request is in progress
     var requestInProgress = false;
 
@@ -25,13 +21,6 @@ var Diagnostic = (function(){
      * Public properties
      *
      ********************/
-
-    // Placeholder listeners
-    Diagnostic._onBluetoothStateChange =
-        Diagnostic._onLocationStateChange =
-            Diagnostic._onNFCStateChange =
-                Diagnostic._onPermissionRequestComplete = function(){};
-
 
     /**
      * "Dangerous" permissions that need to be requested at run-time (Android 6.0/API 23 and above)
@@ -87,39 +76,32 @@ var Diagnostic = (function(){
     Diagnostic.runtimePermissionStatus = // deprecated
         Diagnostic.permissionStatus = {
             "GRANTED": "GRANTED", //  User granted access to this permission, the device is running Android 5.x or below, or the app is built with API 22 or below.
-            "DENIED": "DENIED", // User denied access to this permission
+            "DENIED_ONCE": "DENIED_ONCE", // User denied access to this permission
             "NOT_REQUESTED": "NOT_REQUESTED", // App has not yet requested access to this permission.
             "DENIED_ALWAYS": "DENIED_ALWAYS" // User denied access to this permission and checked "Never Ask Again" box.
         };
 
-    Diagnostic.locationMode = {
-        "HIGH_ACCURACY": "high_accuracy",
-        "DEVICE_ONLY": "device_only",
-        "BATTERY_SAVING": "battery_saving",
-        "LOCATION_OFF": "location_off"
+
+
+    Diagnostic.cpuArchitecture = {
+        UNKNOWN: "unknown",
+        ARMv6: "ARMv6",
+        ARMv7: "ARMv7",
+        ARMv8: "ARMv8",
+        X86: "X86",
+        X86_64: "X86_64",
+        MIPS: "MIPS",
+        MIPS_64: "MIPS_64"
     };
 
-    Diagnostic.locationAuthorizationMode = {}; // Empty object to enable easy cross-platform compatibility with iOS
-
-
-    Diagnostic.firstRequestedPermissions;
-
-    Diagnostic.bluetoothState = {
-        "UNKNOWN": "unknown",
-        "POWERED_OFF": "powered_off",
-        "POWERED_ON": "powered_on",
-        "POWERING_OFF": "powering_off",
-        "POWERING_ON": "powering_on"
-    };
-
-    Diagnostic.NFCState = {
-        "UNKNOWN": "unknown",
-        "POWERED_OFF": "powered_off",
-        "POWERING_ON": "powering_on",
-        "POWERED_ON": "powered_on",
-        "POWERING_OFF": "powering_off"
-    };
-
+    /*****************************
+     *
+     * Protected member functions
+     *
+     ****************************/
+    // Placeholder listeners
+    Diagnostic._onNFCStateChange =
+        Diagnostic._onPermissionRequestComplete = function(){};
 
     /********************
      *
@@ -142,104 +124,19 @@ var Diagnostic = (function(){
         return valid;
     }
 
-    /**
-     * Maintains a locally persisted list of which permissions have been requested in order to resolve the returned status of STATUS_NOT_REQUESTED_OR_DENIED_ALWAYS to either NOT_REQUESTED or DENIED_ALWAYS.
-     * Since requesting a given permission implicitly requests all other permissions in the same group (e.g. requesting READ_CALENDAR will also grant/deny WRITE_CALENDAR),
-     * flag every permission in the groups that were requested.
-     * @param {Array} permissions - list of requested permissions
-     */
-    function updateFirstRequestedPermissions(permissions){
-        var groups = {};
-
-        permissions.forEach(function(permission){
-            groups[runtimeGroupsMap[permission]] = 1;
-        });
 
 
-        for(var group in groups){
-            Diagnostic.permissionGroups[group].forEach(function(permission){
-                if(!Diagnostic.firstRequestedPermissions[permission]){
-                    setPermissionFirstRequested(permission);
-                }
-            });
-        }
-    }
+    /*****************************
+     *
+     * Protected member functions
+     *
+     ****************************/
 
-    function setPermissionFirstRequested(permission){
-        localStorage.setItem(runtimeStoragePrefix+permission, 1);
-        getFirstRequestedPermissions();
-    }
-
-    function getFirstRequestedPermissions(){
-        if(!runtimeGroupsMap){
-            buildRuntimeGroupsMap();
-        }
-        Diagnostic.firstRequestedPermissions = {};
-        for(var permission in Diagnostic.permission){
-            if(localStorage.getItem(runtimeStoragePrefix+permission) == 1){
-                Diagnostic.firstRequestedPermissions[permission] = 1;
-            }
-        }
-        return Diagnostic.firstRequestedPermissions;
-    }
-
-    function resolveStatus(permission, status){
-        if(status == "STATUS_NOT_REQUESTED_OR_DENIED_ALWAYS"){
-            status = Diagnostic.firstRequestedPermissions[permission] ? Diagnostic.permissionStatus.DENIED_ALWAYS : Diagnostic.permissionStatus.NOT_REQUESTED;
-        }
-        return status;
-    }
-
-    function buildRuntimeGroupsMap(){
-        runtimeGroupsMap = {};
-        for(var group in Diagnostic.permissionGroups){
-            var permissions = Diagnostic.permissionGroups[group];
-            for(var i=0; i<permissions.length; i++){
-                runtimeGroupsMap[permissions[i]] = group;
-            }
-        }
-    }
-
-    function combineLocationStatuses(statuses){
-        var coarseStatus = statuses[Diagnostic.permission.ACCESS_COARSE_LOCATION],
-            fineStatus = statuses[Diagnostic.permission.ACCESS_FINE_LOCATION],
-            status;
-
-        if(coarseStatus == Diagnostic.permissionStatus.DENIED_ALWAYS || fineStatus == Diagnostic.permissionStatus.DENIED_ALWAYS){
-            status = Diagnostic.permissionStatus.DENIED_ALWAYS;
-        }else if(coarseStatus == Diagnostic.permissionStatus.DENIED || fineStatus == Diagnostic.permissionStatus.DENIED){
-            status = Diagnostic.permissionStatus.DENIED;
-        }else if(coarseStatus == Diagnostic.permissionStatus.NOT_REQUESTED || fineStatus == Diagnostic.permissionStatus.NOT_REQUESTED){
-            status = Diagnostic.permissionStatus.NOT_REQUESTED;
-        }else{
-            status = Diagnostic.permissionStatus.GRANTED;
-        }
-        return status;
-    }
-
-    function combineCameraStatuses(statuses){
-        var cameraStatus = statuses[Diagnostic.permission.CAMERA],
-            mediaStatus = statuses[Diagnostic.permission.READ_EXTERNAL_STORAGE],
-            status;
-
-        if(cameraStatus == Diagnostic.permissionStatus.DENIED_ALWAYS || mediaStatus == Diagnostic.permissionStatus.DENIED_ALWAYS){
-            status = Diagnostic.permissionStatus.DENIED_ALWAYS;
-        }else if(cameraStatus == Diagnostic.permissionStatus.DENIED || mediaStatus == Diagnostic.permissionStatus.DENIED){
-            status = Diagnostic.permissionStatus.DENIED;
-        }else if(cameraStatus == Diagnostic.permissionStatus.NOT_REQUESTED || mediaStatus == Diagnostic.permissionStatus.NOT_REQUESTED){
-            status = Diagnostic.permissionStatus.NOT_REQUESTED;
-        }else{
-            status = Diagnostic.permissionStatus.GRANTED;
-        }
-        return status;
-    }
-
-    function ensureBoolean(callback){
+    Diagnostic._ensureBoolean = function (callback){
         return function(result){
             callback(!!result);
         }
-    }
-
+    };
 
     /**********************
      *
@@ -251,6 +148,20 @@ var Diagnostic = (function(){
     /***********
      * General
      ***********/
+
+    /**
+     * Enables debug mode, which logs native debug messages to the native and JS consoles.
+     * Debug mode is initially disabled on plugin initialisation.
+     *
+     * @param {Function} successCallback - The callback which will be called when enabling debug is successful.
+     */
+    Diagnostic.enableDebug = function(successCallback) {
+        return cordova.exec(successCallback,
+            null,
+            'Diagnostic',
+            'enableDebug',
+            []);
+    };
 
     /**
      * Opens settings page for this app.
@@ -280,12 +191,8 @@ var Diagnostic = (function(){
     Diagnostic.getPermissionAuthorizationStatus = function(successCallback, errorCallback, permission){
         if(!checkForInvalidPermissions(permission, errorCallback)) return;
 
-        function onSuccess(status){
-            successCallback(resolveStatus(permission, status));
-        }
-
         return cordova.exec(
-            onSuccess,
+            successCallback,
             errorCallback,
             'Diagnostic',
             'getPermissionAuthorizationStatus',
@@ -305,15 +212,8 @@ var Diagnostic = (function(){
     Diagnostic.getPermissionsAuthorizationStatus = function(successCallback, errorCallback, permissions){
         if(!checkForInvalidPermissions(permissions, errorCallback)) return;
 
-        function onSuccess(statuses){
-            for(var permission in statuses){
-                statuses[permission] = resolveStatus(permission, statuses[permission]);
-            }
-            successCallback(statuses);
-        }
-
         return cordova.exec(
-            onSuccess,
+            successCallback,
             errorCallback,
             'Diagnostic',
             'getPermissionsAuthorizationStatus',
@@ -338,14 +238,10 @@ var Diagnostic = (function(){
             return onError("A runtime permissions request is already in progress");
         }
 
-        function onSuccess(status){
+        function onSuccess(statuses){
             requestInProgress = false;
-            var status = resolveStatus(permission, status[permission]);
-            successCallback(status);
-            var statuses = {};
-            statuses[permission] = status;
+            successCallback(statuses[permission]);
             Diagnostic._onPermissionRequestComplete(statuses);
-            updateFirstRequestedPermissions([permission]);
         }
 
         function onError(error){
@@ -381,12 +277,8 @@ var Diagnostic = (function(){
 
         function onSuccess(statuses){
             requestInProgress = false;
-            for(var permission in statuses){
-                statuses[permission] = resolveStatus(permission, statuses[permission]);
-            }
             successCallback(statuses);
             Diagnostic._onPermissionRequestComplete(statuses);
-            updateFirstRequestedPermissions(permissions);
         }
 
         function onError(error){
@@ -428,6 +320,118 @@ var Diagnostic = (function(){
     };
 
 
+    /**
+     * Switches to the wireless settings page in the Settings app.
+     * Allows configuration of wireless controls such as Wi-Fi, Bluetooth and Mobile networks.
+     */
+    Diagnostic.switchToWirelessSettings = function() {
+        return cordova.exec(null,
+            null,
+            'Diagnostic',
+            'switchToWirelessSettings',
+            []);
+    };
+
+
+    /**
+     * Switches to the Mobile Data page in the Settings app
+     */
+    Diagnostic.switchToMobileDataSettings = function() {
+        return cordova.exec(null,
+            null,
+            'Diagnostic',
+            'switchToMobileDataSettings',
+            []);
+    };
+
+    /**
+     * Checks if ADB mode(debug mode) is switched on.
+     * Returns true if ADB mode is switched on.
+     *
+     * @param {Function} successCallback -  The callback which will be called when the operation is successful.
+     * This callback function is passed a single boolean parameter which is TRUE if ADB mode(debug mode) is switched on.
+     * @param {Function} errorCallback -  The callback which will be called when the operation encounters an error.
+     *  This callback function is passed a single string parameter containing the error message.
+     */
+    Diagnostic.isADBModeEnabled = function(successCallback, errorCallback) {
+        return cordova.exec(Diagnostic._ensureBoolean(successCallback),
+            errorCallback,
+            'Diagnostic',
+            'isADBModeEnabled',
+            []);
+    };
+
+    /**
+     * Checks if the device is rooted.
+     * Returns true if the device is rooted.
+     *
+     * @param {Function} successCallback -  The callback which will be called when the operation is successful.
+     * This callback function is passed a single boolean parameter which is TRUE if the device is rooted.
+     * @param {Function} errorCallback -  The callback which will be called when the operation encounters an error.
+     *  This callback function is passed a single string parameter containing the error message.
+     */
+    Diagnostic.isDeviceRooted = function(successCallback, errorCallback) {
+        return cordova.exec(Diagnostic._ensureBoolean(successCallback),
+            errorCallback,
+            'Diagnostic',
+            'isDeviceRooted',
+            []);
+    };
+
+    /**
+     * Restarts the application.
+     * By default, a "warm" restart will be performed in which the main Cordova activity is immediately restarted, causing the Webview instance to be recreated.
+     * However, if the `cold` parameter is set to true, then the application will be "cold" restarted, meaning a system exit will be performed, causing the entire application to be restarted.
+     * This is useful if you want to fully reset the native application state but will cause the application to briefly disappear and re-appear.
+     *
+     * Note: There is no successCallback() since if the operation is successful, the application will restart immediately before any success callback can be applied.
+     *
+     * @param {Function} errorCallback - function to call on failure to retrieve authorisation status.
+     * This callback function is passed a single string parameter containing the error message.
+     * @param {Boolean} cold - if true the application will be cold restarted. Defaults to false.
+     */
+    Diagnostic.restart = function(errorCallback, cold){
+        return cordova.exec(
+            null,
+            errorCallback,
+            'Diagnostic',
+            'restart',
+            [cold]);
+    };
+
+    /**
+     * Returns CPU architecture of the current device.
+     *
+     * @param {Function} successCallback -  The callback which will be called when the operation is successful.
+     * This callback function is passed a single string parameter defined as a constant in `cordova.plugins.diagnostic.cpuArchitecture`.
+     * @param {Function} errorCallback -  The callback which will be called when the operation encounters an error.
+     *  This callback function is passed a single string parameter containing the error message.
+     */
+    Diagnostic.getArchitecture = function(successCallback, errorCallback) {
+        return cordova.exec(successCallback,
+            errorCallback,
+            'Diagnostic',
+            'getArchitecture',
+            []);
+    };
+
+    /**
+     * Checks if the device data roaming setting is enabled.
+     * Returns true if data roaming is enabled.
+     *
+     * @param {Function} successCallback -  The callback which will be called when the operation is successful.
+     * This callback function is passed a single boolean parameter which is TRUE if data roaming is enabled.
+     * @param {Function} errorCallback -  The callback which will be called when the operation encounters an error.
+     *  This callback function is passed a single string parameter containing the error message.
+     */
+    Diagnostic.isDataRoamingEnabled = function(successCallback, errorCallback) {
+        return cordova.exec(Diagnostic._ensureBoolean(successCallback),
+            errorCallback,
+            'Diagnostic',
+            'isDataRoamingEnabled',
+            []);
+    };
+
     /************
      * Location *
      ************/
@@ -443,11 +447,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isLocationAvailable = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isLocationAvailable',
-            []);
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.isLocationAvailable.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
+        }
     };
 
     /**
@@ -460,11 +464,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isLocationEnabled = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isLocationEnabled',
-            []);
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.isLocationEnabled.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
+        }
     };
 
     /**
@@ -478,11 +482,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isGpsLocationAvailable = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isGpsLocationAvailable',
-            []);
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.isGpsLocationAvailable.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
+        }
     };
 
     /**
@@ -497,11 +501,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isGpsLocationEnabled = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isGpsLocationEnabled',
-            []);
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.isGpsLocationEnabled.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
+        }
     };
 
     /**
@@ -515,11 +519,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isNetworkLocationAvailable = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isNetworkLocationAvailable',
-            []);
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.isNetworkLocationAvailable.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
+        }
     };
 
     /**
@@ -534,11 +538,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isNetworkLocationEnabled = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isNetworkLocationEnabled',
-            []);
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.isNetworkLocationEnabled.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
+        }
     };
 
     /**
@@ -550,22 +554,22 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.getLocationMode = function(successCallback, errorCallback) {
-        return cordova.exec(successCallback,
-            errorCallback,
-            'Diagnostic',
-            'getLocationMode',
-            []);
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.getLocationMode.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
+        }
     };
 
     /**
      * Switches to the Location page in the Settings app
      */
     Diagnostic.switchToLocationSettings = function() {
-        return cordova.exec(null,
-            null,
-            'Diagnostic',
-            'switchToLocationSettings',
-            []);
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.switchToLocationSettings.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
+        }
     };
 
     /**
@@ -576,13 +580,11 @@ var Diagnostic = (function(){
      * @param {Function} errorCallback - function to call on failure to request authorisation.
      */
     Diagnostic.requestLocationAuthorization = function(successCallback, errorCallback){
-        function onSuccess(statuses){
-            successCallback(combineLocationStatuses(statuses));
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.requestLocationAuthorization.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
         }
-        Diagnostic.requestRuntimePermissions(onSuccess, errorCallback, [
-            Diagnostic.permission.ACCESS_COARSE_LOCATION,
-            Diagnostic.permission.ACCESS_FINE_LOCATION
-        ]);
     };
 
     /**
@@ -593,13 +595,11 @@ var Diagnostic = (function(){
      * @param {Function} errorCallback - function to call on failure to request authorisation status.
      */
     Diagnostic.getLocationAuthorizationStatus = function(successCallback, errorCallback){
-        function onSuccess(statuses){
-            successCallback(combineLocationStatuses(statuses));
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.getLocationAuthorizationStatus.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
         }
-        Diagnostic.getPermissionsAuthorizationStatus(onSuccess, errorCallback, [
-            Diagnostic.permission.ACCESS_COARSE_LOCATION,
-            Diagnostic.permission.ACCESS_FINE_LOCATION
-        ]);
     };
 
     /**
@@ -610,10 +610,11 @@ var Diagnostic = (function(){
      * @param {Function} errorCallback - function to call on failure to request authorisation status.
      */
     Diagnostic.isLocationAuthorized = function(successCallback, errorCallback){
-        function onSuccess(status){
-            successCallback(status == Diagnostic.permissionStatus.GRANTED);
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.isLocationAuthorized.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
         }
-        Diagnostic.getLocationAuthorizationStatus(onSuccess, errorCallback);
     };
 
     /**
@@ -625,7 +626,11 @@ var Diagnostic = (function(){
      * This callback function is passed a single string parameter defined as a constant in `cordova.plugins.diagnostic.locationMode`.
      */
     Diagnostic.registerLocationStateChangeHandler = function(successCallback) {
-        Diagnostic._onLocationStateChange = successCallback || function(){};
+        if(cordova.plugins.diagnostic.location){
+            cordova.plugins.diagnostic.location.registerLocationStateChangeHandler.apply(this, arguments);
+        }else{
+            throw "Diagnostic Location module is not installed";
+        }
     };
 
     /************
@@ -633,54 +638,31 @@ var Diagnostic = (function(){
      ************/
 
     /**
-     * Checks if Wifi is connected/enabled.
+     * Checks if Wifi is enabled.
      * On Android this returns true if the WiFi setting is set to enabled.
      *
      * @param {Function} successCallback -  The callback which will be called when the operation is successful.
-     * This callback function is passed a single boolean parameter which is TRUE if device is connected by WiFi.
+     * This callback function is passed a single boolean parameter which is TRUE if WiFi is enabled.
      * @param {Function} errorCallback -  The callback which will be called when the operation encounters an error.
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isWifiAvailable = Diagnostic.isWifiEnabled = function(successCallback, errorCallback) {
-        return cordova.exec(successCallback,
-            errorCallback,
-            'Diagnostic',
-            'isWifiAvailable',
-            []);
+        if(cordova.plugins.diagnostic.wifi){
+            cordova.plugins.diagnostic.wifi.isWifiAvailable.apply(this, arguments);
+        }else{
+            throw "Diagnostic Wifi module is not installed";
+        }
     };
 
     /**
      * Switches to the WiFi page in the Settings app
      */
     Diagnostic.switchToWifiSettings = function() {
-        return cordova.exec(null,
-            null,
-            'Diagnostic',
-            'switchToWifiSettings',
-            []);
-    };
-
-    /**
-     * Switches to the wireless settings page in the Settings app.
-     * Allows configuration of wireless controls such as Wi-Fi, Bluetooth and Mobile networks.
-     */
-    Diagnostic.switchToWirelessSettings = function() {
-        return cordova.exec(null,
-            null,
-            'Diagnostic',
-            'switchToWirelessSettings',
-            []);
-    };
-
-    /**
-     * Switches to the nfc settings page in the Settings app
-     */
-    Diagnostic.switchToNFCSettings = function() {
-        return cordova.exec(null,
-            null,
-            'Diagnostic',
-            'switchToNFCSettings',
-            []);
+        if(cordova.plugins.diagnostic.wifi){
+            cordova.plugins.diagnostic.wifi.switchToWifiSettings.apply(this, arguments);
+        }else{
+            throw "Diagnostic Wifi module is not installed";
+        }
     };
 
     /**
@@ -692,11 +674,11 @@ var Diagnostic = (function(){
      * @param {Boolean} state - WiFi state to set: TRUE for enabled, FALSE for disabled.
      */
     Diagnostic.setWifiState = function(successCallback, errorCallback, state) {
-        return cordova.exec(successCallback,
-            errorCallback,
-            'Diagnostic',
-            'setWifiState',
-            [state]);
+        if(cordova.plugins.diagnostic.wifi){
+            cordova.plugins.diagnostic.wifi.setWifiState.apply(this, arguments);
+        }else{
+            throw "Diagnostic Wifi module is not installed";
+        }
     };
 
     /************
@@ -706,19 +688,20 @@ var Diagnostic = (function(){
     /**
      * Checks if camera is usable: both present and authorised for use.
      *
-     * @param {Function} successCallback -  The callback which will be called when the operation is successful.
+     * @param {Object} params - (optional) parameters:
+     *  - {Function} successCallback -  The callback which will be called when the operation is successful.
      * This callback function is passed a single boolean parameter which is TRUE if camera is present and authorized for use.
-     * @param {Function} errorCallback -  The callback which will be called when the operation encounters an error.
+     *  - {Function} errorCallback -  The callback which will be called when the operation encounters an error.
      *  This callback function is passed a single string parameter containing the error message.
+     *  - {Boolean} externalStorage - (Android only) If true, checks permission for READ_EXTERNAL_STORAGE in addition to CAMERA run-time permission.
+     *  cordova-plugin-camera@2.2+ requires both of these permissions. Defaults to true.
      */
-    Diagnostic.isCameraAvailable = function(successCallback, errorCallback) {
-        Diagnostic.isCameraPresent(function(isPresent){
-            if(isPresent){
-                Diagnostic.isCameraAuthorized(successCallback, errorCallback);
-            }else{
-                successCallback(!!isPresent);
-            }
-        },errorCallback);
+    Diagnostic.isCameraAvailable = function(params) {
+        if(cordova.plugins.diagnostic.camera){
+            cordova.plugins.diagnostic.camera.isCameraAvailable.apply(this, arguments);
+        }else{
+            throw "Diagnostic Camera module is not installed";
+        }
     };
 
     /**
@@ -730,59 +713,65 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isCameraPresent = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isCameraPresent',
-            []);
+        if(cordova.plugins.diagnostic.camera){
+            cordova.plugins.diagnostic.camera.isCameraPresent.apply(this, arguments);
+        }else{
+            throw "Diagnostic Camera module is not installed";
+        }
     };
 
     /**
      * Requests authorisation for runtime permissions to use the camera.
      * Note: this is intended for Android 6 / API 23 and above. Calling on Android 5 / API 22 and below will have no effect as the permissions are already granted at installation time.
-     * @param {Function} successCallback - function to call on successful request for runtime permissions.
+     * @param {Object} params - (optional) parameters:
+     *  - {Function} successCallback - function to call on successful request for runtime permissions.
      * This callback function is passed a single string parameter which defines the resulting authorisation status as a value in cordova.plugins.diagnostic.permissionStatus.
-     * @param {Function} errorCallback - function to call on failure to request authorisation.
+     *  - {Function} errorCallback - function to call on failure to request authorisation.
+     *  - {Boolean} externalStorage - (Android only) If true, requests permission for READ_EXTERNAL_STORAGE in addition to CAMERA run-time permission.
+     *  cordova-plugin-camera@2.2+ requires both of these permissions. Defaults to true.
      */
-    Diagnostic.requestCameraAuthorization = function(successCallback, errorCallback){
-        function onSuccess(statuses){
-            successCallback(combineCameraStatuses(statuses));
+    Diagnostic.requestCameraAuthorization = function(params){
+        if(cordova.plugins.diagnostic.camera){
+            cordova.plugins.diagnostic.camera.requestCameraAuthorization.apply(this, arguments);
+        }else{
+            throw "Diagnostic Camera module is not installed";
         }
-        Diagnostic.requestRuntimePermissions(onSuccess, errorCallback, [
-            Diagnostic.permission.CAMERA,
-            Diagnostic.permission.READ_EXTERNAL_STORAGE
-        ]);
     };
 
     /**
      * Returns the authorisation status for runtime permissions to use the camera.
      * Note: this is intended for Android 6 / API 23 and above. Calling on Android 5 / API 22 and below will always return GRANTED status as permissions are already granted at installation time.
-     * @param {Function} successCallback - function to call on successful request for runtime permissions status.
+     * @param {Object} params - (optional) parameters:
+     *  - {Function} successCallback - function to call on successful request for runtime permissions status.
      * This callback function is passed a single string parameter which defines the current authorisation status as a value in cordova.plugins.diagnostic.permissionStatus.
-     * @param {Function} errorCallback - function to call on failure to request authorisation status.
+     *  - {Function} errorCallback - function to call on failure to request authorisation status.
+     *  - {Boolean} externalStorage - (Android only) If true, checks permission for READ_EXTERNAL_STORAGE in addition to CAMERA run-time permission.
+     *  cordova-plugin-camera@2.2+ requires both of these permissions. Defaults to true.
      */
-    Diagnostic.getCameraAuthorizationStatus = function(successCallback, errorCallback){
-        function onSuccess(statuses){
-            successCallback(combineCameraStatuses(statuses));
+    Diagnostic.getCameraAuthorizationStatus = function(params){
+        if(cordova.plugins.diagnostic.camera){
+            cordova.plugins.diagnostic.camera.getCameraAuthorizationStatus.apply(this, arguments);
+        }else{
+            throw "Diagnostic Camera module is not installed";
         }
-        Diagnostic.getPermissionsAuthorizationStatus(onSuccess, errorCallback, [
-            Diagnostic.permission.CAMERA,
-            Diagnostic.permission.READ_EXTERNAL_STORAGE
-        ]);
     };
 
     /**
      * Checks if the application is authorized to use the camera.
      * Note: this is intended for Android 6 / API 23 and above. Calling on Android 5 / API 22 and below will always return TRUE as permissions are already granted at installation time.
-     * @param {Function} successCallback - function to call on successful request for runtime permissions status.
+     * @param {Object} params - (optional) parameters:
+     *  - {Function} successCallback - function to call on successful request for runtime permissions status.
      * This callback function is passed a single boolean parameter which is TRUE if the app currently has runtime authorisation to use location.
-     * @param {Function} errorCallback - function to call on failure to request authorisation status.
+     *  - {Function} errorCallback - function to call on failure to request authorisation status.
+     *  - {Boolean} externalStorage - (Android only) If true, checks permission for READ_EXTERNAL_STORAGE in addition to CAMERA run-time permission.
+     *  cordova-plugin-camera@2.2+ requires both of these permissions. Defaults to true.
      */
-    Diagnostic.isCameraAuthorized = function(successCallback, errorCallback){
-        function onSuccess(status){
-            successCallback(status == Diagnostic.permissionStatus.GRANTED);
+    Diagnostic.isCameraAuthorized = function(params){
+        if(cordova.plugins.diagnostic.camera){
+            cordova.plugins.diagnostic.camera.isCameraAuthorized.apply(this, arguments);
+        }else{
+            throw "Diagnostic Camera module is not installed";
         }
-        Diagnostic.getCameraAuthorizationStatus(onSuccess, errorCallback);
     };
 
     /**********************
@@ -796,7 +785,11 @@ var Diagnostic = (function(){
      * @param {Function} errorCallback - function to call on failure to request authorisation.
      */
     Diagnostic.requestExternalStorageAuthorization = function(successCallback, errorCallback){
-        Diagnostic.requestRuntimePermission(successCallback, errorCallback, Diagnostic.permission.READ_EXTERNAL_STORAGE);
+        if(cordova.plugins.diagnostic.external_storage){
+            cordova.plugins.diagnostic.external_storage.requestExternalStorageAuthorization.apply(this, arguments);
+        }else{
+            throw "Diagnostic External Storage module is not installed";
+        }
     };
 
     /**
@@ -807,7 +800,11 @@ var Diagnostic = (function(){
      * @param {Function} errorCallback - function to call on failure to request authorisation status.
      */
     Diagnostic.getExternalStorageAuthorizationStatus = function(successCallback, errorCallback){
-        Diagnostic.getPermissionAuthorizationStatus(successCallback, errorCallback, Diagnostic.permission.READ_EXTERNAL_STORAGE);
+        if(cordova.plugins.diagnostic.external_storage){
+            cordova.plugins.diagnostic.external_storage.getExternalStorageAuthorizationStatus.apply(this, arguments);
+        }else{
+            throw "Diagnostic External Storage module is not installed";
+        }
     };
 
     /**
@@ -818,10 +815,11 @@ var Diagnostic = (function(){
      * @param {Function} errorCallback - function to call on failure to request authorisation status.
      */
     Diagnostic.isExternalStorageAuthorized = function(successCallback, errorCallback){
-        function onSuccess(status){
-            successCallback(status == Diagnostic.permissionStatus.GRANTED);
+        if(cordova.plugins.diagnostic.external_storage){
+            cordova.plugins.diagnostic.external_storage.isExternalStorageAuthorized.apply(this, arguments);
+        }else{
+            throw "Diagnostic External Storage module is not installed";
         }
-        Diagnostic.getExternalStorageAuthorizationStatus(onSuccess, errorCallback);
     };
 
     /**
@@ -837,11 +835,11 @@ var Diagnostic = (function(){
      * @param {Function} errorCallback - function to call on failure to request authorisation status.
      */
     Diagnostic.getExternalSdCardDetails = function(successCallback, errorCallback){
-        return cordova.exec(successCallback,
-            errorCallback,
-            'Diagnostic',
-            'getExternalSdCardDetails',
-            []);
+        if(cordova.plugins.diagnostic.external_storage){
+            cordova.plugins.diagnostic.external_storage.getExternalSdCardDetails.apply(this, arguments);
+        }else{
+            throw "Diagnostic External Storage module is not installed";
+        }
     };
 
 
@@ -859,11 +857,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isBluetoothAvailable = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isBluetoothAvailable',
-            []);
+        if(cordova.plugins.diagnostic.bluetooth){
+            cordova.plugins.diagnostic.bluetooth.isBluetoothAvailable.apply(this, arguments);
+        }else{
+            throw "Diagnostic Bluetooth module is not installed";
+        }
     };
 
     /**
@@ -875,11 +873,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isBluetoothEnabled = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isBluetoothEnabled',
-            []);
+        if(cordova.plugins.diagnostic.bluetooth){
+            cordova.plugins.diagnostic.bluetooth.isBluetoothEnabled.apply(this, arguments);
+        }else{
+            throw "Diagnostic Bluetooth module is not installed";
+        }
     };
 
     /**
@@ -891,11 +889,11 @@ var Diagnostic = (function(){
      * @param {Boolean} state - Bluetooth state to set: TRUE for enabled, FALSE for disabled.
      */
     Diagnostic.setBluetoothState = function(successCallback, errorCallback, state) {
-        return cordova.exec(successCallback,
-            errorCallback,
-            'Diagnostic',
-            'setBluetoothState',
-            [state]);
+        if(cordova.plugins.diagnostic.bluetooth){
+            cordova.plugins.diagnostic.bluetooth.setBluetoothState.apply(this, arguments);
+        }else{
+            throw "Diagnostic Bluetooth module is not installed";
+        }
     };
 
     /**
@@ -907,11 +905,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.getBluetoothState = function(successCallback, errorCallback) {
-        return cordova.exec(successCallback,
-            errorCallback,
-            'Diagnostic',
-            'getBluetoothState',
-            []);
+        if(cordova.plugins.diagnostic.bluetooth){
+            cordova.plugins.diagnostic.bluetooth.getBluetoothState.apply(this, arguments);
+        }else{
+            throw "Diagnostic Bluetooth module is not installed";
+        }
     };
 
     /**
@@ -920,19 +918,13 @@ var Diagnostic = (function(){
      *
      * @param {Function} successCallback -  The callback which will be called when the state of Bluetooth hardware changes.
      * This callback function is passed a single string parameter defined as a constant in `cordova.plugins.diagnostic.bluetoothState`.
-     * @param {Function} errorCallback -  The callback which will be called when the operation encounters an error.
-     *  This callback function is passed a single string parameter containing the error message.
      */
-    Diagnostic.registerBluetoothStateChangeHandler = function(successCallback, errorCallback) {
-        cordova.exec(
-            function(){
-                Diagnostic._onBluetoothStateChange = successCallback || function(){};
-            },
-            errorCallback,
-            'Diagnostic',
-            'initializeBluetoothListener',
-            []
-        );
+    Diagnostic.registerBluetoothStateChangeHandler = function(successCallback) {
+        if(cordova.plugins.diagnostic.bluetooth){
+            cordova.plugins.diagnostic.bluetooth.registerBluetoothStateChangeHandler.apply(this, arguments);
+        }else{
+            throw "Diagnostic Bluetooth module is not installed";
+        }
     };
 
 
@@ -946,10 +938,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.hasBluetoothSupport = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'hasBluetoothSupport', []);
+        if(cordova.plugins.diagnostic.bluetooth){
+            cordova.plugins.diagnostic.bluetooth.hasBluetoothSupport.apply(this, arguments);
+        }else{
+            throw "Diagnostic Bluetooth module is not installed";
+        }
     };
 
     /**
@@ -962,10 +955,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.hasBluetoothLESupport = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'hasBluetoothLESupport', []);
+        if(cordova.plugins.diagnostic.bluetooth){
+            cordova.plugins.diagnostic.bluetooth.hasBluetoothLESupport.apply(this, arguments);
+        }else{
+            throw "Diagnostic Bluetooth module is not installed";
+        }
     };
 
     /**
@@ -978,10 +972,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.hasBluetoothLESupport = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'hasBluetoothLESupport', []);
+        if(cordova.plugins.diagnostic.bluetooth){
+            cordova.plugins.diagnostic.bluetooth.hasBluetoothLESupport.apply(this, arguments);
+        }else{
+            throw "Diagnostic Bluetooth module is not installed";
+        }
     };
 
     /**
@@ -994,37 +989,43 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.hasBluetoothLEPeripheralSupport = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'hasBluetoothLEPeripheralSupport', []);
+        if(cordova.plugins.diagnostic.bluetooth){
+            cordova.plugins.diagnostic.bluetooth.hasBluetoothLEPeripheralSupport.apply(this, arguments);
+        }else{
+            throw "Diagnostic Bluetooth module is not installed";
+        }
     };
 
     /**
      * Switches to the Bluetooth page in the Settings app
      */
     Diagnostic.switchToBluetoothSettings = function() {
-        return cordova.exec(null,
-            null,
-            'Diagnostic',
-            'switchToBluetoothSettings',
-            []);
+        if(cordova.plugins.diagnostic.bluetooth){
+            cordova.plugins.diagnostic.bluetooth.switchToBluetoothSettings.apply(this, arguments);
+        }else{
+            throw "Diagnostic Bluetooth module is not installed";
+        }
     };
 
-
-    /*************
-     * Mobile Data
-     *************/
+    /**********************
+     * Remote Notifications
+     **********************/
 
     /**
-     * Switches to the Mobile Data page in the Settings app
+     * Checks if remote notifications is available to the app.
+     * Returns true if remote notifications are switched on.
+     *
+     * @param {Function} successCallback -  The callback which will be called when the operation is successful.
+     * This callback function is passed a single boolean parameter which is TRUE if remote notifications is available.
+     * @param {Function} errorCallback -  The callback which will be called when the operation encounters an error.
+     *  This callback function is passed a single string parameter containing the error message.
      */
-    Diagnostic.switchToMobileDataSettings = function() {
-        return cordova.exec(null,
-            null,
-            'Diagnostic',
-            'switchToMobileDataSettings',
-            []);
+    Diagnostic.isRemoteNotificationsEnabled = function(successCallback, errorCallback) {
+        if(cordova.plugins.diagnostic.notifications){
+            cordova.plugins.diagnostic.notifications.isRemoteNotificationsEnabled.apply(this, arguments);
+        }else{
+            throw "Diagnostic Notifications module is not installed";
+        }
     };
 
 
@@ -1041,10 +1042,11 @@ var Diagnostic = (function(){
      * This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isMicrophoneAuthorized = function(successCallback, errorCallback) {
-        function onSuccess(status){
-            successCallback(status == Diagnostic.permissionStatus.GRANTED);
+        if(cordova.plugins.diagnostic.microphone){
+            cordova.plugins.diagnostic.microphone.isMicrophoneAuthorized.apply(this, arguments);
+        }else{
+            throw "Diagnostic Microphone module is not installed";
         }
-        Diagnostic.getMicrophoneAuthorizationStatus(onSuccess, errorCallback);
     };
 
     /**
@@ -1052,12 +1054,20 @@ var Diagnostic = (function(){
      *
      * @param {Function} successCallback - The callback which will be called when operation is successful.
      * This callback function is passed a single string parameter which indicates the authorization status.
-     * Possible values are: "unknown", "denied", "not_determined", "authorized"
+     * Possible values are:
+     * `cordova.plugins.diagnostic.permissionStatus.NOT_REQUESTED`
+     * `cordova.plugins.diagnostic.permissionStatus.DENIED_ONCE`
+     * `cordova.plugins.diagnostic.permissionStatus.DENIED_ALWAYS`
+     * `cordova.plugins.diagnostic.permissionStatus.GRANTED`
      * @param {Function} errorCallback -  The callback which will be called when operation encounters an error.
      * This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.getMicrophoneAuthorizationStatus = function(successCallback, errorCallback) {
-        Diagnostic.getPermissionAuthorizationStatus(successCallback, errorCallback, Diagnostic.permission.RECORD_AUDIO);
+        if(cordova.plugins.diagnostic.microphone){
+            cordova.plugins.diagnostic.microphone.getMicrophoneAuthorizationStatus.apply(this, arguments);
+        }else{
+            throw "Diagnostic Microphone module is not installed";
+        }
     };
 
     /**
@@ -1068,7 +1078,11 @@ var Diagnostic = (function(){
      * This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.requestMicrophoneAuthorization = function(successCallback, errorCallback) {
-        Diagnostic.requestRuntimePermission(successCallback, errorCallback, Diagnostic.permission.RECORD_AUDIO);
+        if(cordova.plugins.diagnostic.microphone){
+            cordova.plugins.diagnostic.microphone.requestMicrophoneAuthorization.apply(this, arguments);
+        }else{
+            throw "Diagnostic Microphone module is not installed";
+        }
     };
 
     /*************
@@ -1084,10 +1098,11 @@ var Diagnostic = (function(){
      * This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isContactsAuthorized = function(successCallback, errorCallback) {
-        function onSuccess(status){
-            successCallback(status == Diagnostic.permissionStatus.GRANTED);
+        if(cordova.plugins.diagnostic.contacts){
+            cordova.plugins.diagnostic.contacts.isContactsAuthorized.apply(this, arguments);
+        }else{
+            throw "Diagnostic Contacts module is not installed";
         }
-        Diagnostic.getContactsAuthorizationStatus(onSuccess, errorCallback);
     };
 
     /**
@@ -1095,12 +1110,20 @@ var Diagnostic = (function(){
      *
      * @param {Function} successCallback - The callback which will be called when operation is successful.
      * This callback function is passed a single string parameter which indicates the authorization status.
-     * Possible values are: "unknown", "denied", "not_determined", "authorized"
+     * Possible values are:
+     * `cordova.plugins.diagnostic.permissionStatus.NOT_REQUESTED`
+     * `cordova.plugins.diagnostic.permissionStatus.DENIED_ONCE`
+     * `cordova.plugins.diagnostic.permissionStatus.DENIED_ALWAYS`
+     * `cordova.plugins.diagnostic.permissionStatus.GRANTED`
      * @param {Function} errorCallback -  The callback which will be called when operation encounters an error.
      * This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.getContactsAuthorizationStatus = function(successCallback, errorCallback) {
-        Diagnostic.getPermissionAuthorizationStatus(successCallback, errorCallback, Diagnostic.permission.READ_CONTACTS);
+        if(cordova.plugins.diagnostic.contacts){
+            cordova.plugins.diagnostic.contacts.getContactsAuthorizationStatus.apply(this, arguments);
+        }else{
+            throw "Diagnostic Contacts module is not installed";
+        }
     };
 
     /**
@@ -1112,7 +1135,11 @@ var Diagnostic = (function(){
      * This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.requestContactsAuthorization = function(successCallback, errorCallback) {
-        Diagnostic.requestRuntimePermission(successCallback, errorCallback, Diagnostic.permission.READ_CONTACTS);
+        if(cordova.plugins.diagnostic.contacts){
+            cordova.plugins.diagnostic.contacts.requestContactsAuthorization.apply(this, arguments);
+        }else{
+            throw "Diagnostic Contacts module is not installed";
+        }
     };
 
     /*************
@@ -1128,10 +1155,11 @@ var Diagnostic = (function(){
      * This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isCalendarAuthorized = function(successCallback, errorCallback) {
-        function onSuccess(status){
-            successCallback(status == Diagnostic.permissionStatus.GRANTED);
+        if(cordova.plugins.diagnostic.calendar){
+            cordova.plugins.diagnostic.calendar.isCalendarAuthorized.apply(this, arguments);
+        }else{
+            throw "Diagnostic Calendar module is not installed";
         }
-        Diagnostic.getCalendarAuthorizationStatus(onSuccess, errorCallback);
     };
 
     /**
@@ -1139,12 +1167,20 @@ var Diagnostic = (function(){
      *
      * @param {Function} successCallback - The callback which will be called when operation is successful.
      * This callback function is passed a single string parameter which indicates the authorization status.
-     * Possible values are: "unknown", "denied", "not_determined", "authorized"
+     * Possible values are:
+     * `cordova.plugins.diagnostic.permissionStatus.NOT_REQUESTED`
+     * `cordova.plugins.diagnostic.permissionStatus.DENIED_ONCE`
+     * `cordova.plugins.diagnostic.permissionStatus.DENIED_ALWAYS`
+     * `cordova.plugins.diagnostic.permissionStatus.GRANTED`
      * @param {Function} errorCallback -  The callback which will be called when operation encounters an error.
      * This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.getCalendarAuthorizationStatus = function(successCallback, errorCallback) {
-        Diagnostic.getPermissionAuthorizationStatus(successCallback, errorCallback, Diagnostic.permission.READ_CALENDAR);
+        if(cordova.plugins.diagnostic.calendar){
+            cordova.plugins.diagnostic.calendar.getCalendarAuthorizationStatus.apply(this, arguments);
+        }else{
+            throw "Diagnostic Calendar module is not installed";
+        }
     };
 
     /**
@@ -1156,7 +1192,11 @@ var Diagnostic = (function(){
      * This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.requestCalendarAuthorization = function(successCallback, errorCallback) {
-        Diagnostic.requestRuntimePermission(successCallback, errorCallback, Diagnostic.permission.READ_CALENDAR);
+        if(cordova.plugins.diagnostic.calendar){
+            cordova.plugins.diagnostic.calendar.requestCalendarAuthorization.apply(this, arguments);
+        }else{
+            throw "Diagnostic Calendar module is not installed";
+        }
     };
 
     /*************
@@ -1172,11 +1212,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isNFCPresent = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isNFCPresent',
-            []);
+        if(cordova.plugins.diagnostic.nfc){
+            cordova.plugins.diagnostic.nfc.isNFCPresent.apply(this, arguments);
+        }else{
+            throw "Diagnostic NFC module is not installed";
+        }
     };
 
     /**
@@ -1188,11 +1228,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isNFCEnabled = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isNFCEnabled',
-            []);
+        if(cordova.plugins.diagnostic.nfc){
+            cordova.plugins.diagnostic.nfc.isNFCEnabled.apply(this, arguments);
+        }else{
+            throw "Diagnostic NFC module is not installed";
+        }
     };
 
     /**
@@ -1205,11 +1245,11 @@ var Diagnostic = (function(){
      *  This callback function is passed a single string parameter containing the error message.
      */
     Diagnostic.isNFCAvailable = function(successCallback, errorCallback) {
-        return cordova.exec(ensureBoolean(successCallback),
-            errorCallback,
-            'Diagnostic',
-            'isNFCAvailable',
-            []);
+        if(cordova.plugins.diagnostic.nfc){
+            cordova.plugins.diagnostic.nfc.isNFCAvailable.apply(this, arguments);
+        }else{
+            throw "Diagnostic NFC module is not installed";
+        }
     };
 
     /**
@@ -1220,14 +1260,24 @@ var Diagnostic = (function(){
      * This callback function is passed a single string parameter defined as a constant in `cordova.plugins.diagnostic.NFCState`.
      */
     Diagnostic.registerNFCStateChangeHandler = function(successCallback) {
-        Diagnostic._onNFCStateChange = successCallback || function(){};
+        if(cordova.plugins.diagnostic.nfc){
+            cordova.plugins.diagnostic.nfc.registerNFCStateChangeHandler.apply(this, arguments);
+        }else{
+            throw "Diagnostic NFC module is not installed";
+        }
     };
 
 
-    /**************
-     * Constructor
-     **************/
-    getFirstRequestedPermissions();
+    /**
+     * Switches to the nfc settings page in the Settings app
+     */
+    Diagnostic.switchToNFCSettings = function() {
+        if(cordova.plugins.diagnostic.nfc){
+            cordova.plugins.diagnostic.nfc.switchToNFCSettings.apply(this, arguments);
+        }else{
+            throw "Diagnostic NFC module is not installed";
+        }
+    };
 
     return Diagnostic;
 });
