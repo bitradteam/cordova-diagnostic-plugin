@@ -50,7 +50,7 @@
         <framework src="CoreLocation.framework" />
 
         <config-file target="*-Info.plist" parent="NSLocationWhenInUseUsageDescription" comment="Default usage descriptions: override as necessary in .plist">
-            <string>This app requires access to your location when the screen is on and the app is displayed.</string>
+            <string>Descubra lojas e promocoes perto de si ao ativar a sua localizacao.</string>
         </config-file>
 
         <config-file target="*-Info.plist" parent="NSLocationAlwaysAndWhenInUseUsageDescription" comment="iOS 11 or greater">
