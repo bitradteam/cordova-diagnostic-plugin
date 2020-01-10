@@ -50,15 +50,15 @@
         <framework src="CoreLocation.framework" />
 
         <config-file target="*-Info.plist" parent="NSLocationWhenInUseUsageDescription" comment="Default usage descriptions: override as necessary in .plist">
-            <string>Descubra lojas e promocoes perto de si ao ativar a sua localizacao.</string>
+            <string>Descubra lojas e promoções perto de si ao ativar a sua localização.</string>
         </config-file>
 
         <config-file target="*-Info.plist" parent="NSLocationAlwaysAndWhenInUseUsageDescription" comment="iOS 11 or greater">
-            <string>Descubra lojas e promocoes perto de si ao ativar a sua localizacao.</string>
+            <string>Descubra lojas e promoções perto de si ao ativar a sua localização.</string>
         </config-file>
 
         <config-file target="*-Info.plist" parent="NSLocationAlwaysUsageDescription" comment="iOS 10 or below">
-            <string>Descubra lojas e promocoes perto de si ao ativar a sua localizacao.</string>
+            <string>Descubra lojas e promoções perto de si ao ativar a sua localização.</string>
         </config-file>
         <!--END_MODULE LOCATION-->
 
