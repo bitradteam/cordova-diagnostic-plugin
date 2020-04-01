@@ -80,8 +80,13 @@
         <framework src="CoreBluetooth.framework" />
 
         <config-file target="*-Info.plist" parent="NSBluetoothPeripheralUsageDescription">
-            <string>This app requires bluetooth access to function properly.</string>
+            <string>Esta aplicação teste 1</string>
         </config-file>
+        
+        <config-file target="*-Info.plist" parent="NSBluetoothAlwaysUsageDescription">
+            <string>Esta aplicação teste 2</string>
+        </config-file>
+
         <!--END_MODULE BLUETOOTH-->
 
         <!--BEGIN_MODULE WIFI-->
