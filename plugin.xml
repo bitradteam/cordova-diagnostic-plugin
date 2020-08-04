@@ -78,17 +78,11 @@
         <source-file src="src/ios/Diagnostic_Bluetooth.m" />
 
         <framework src="CoreBluetooth.framework" />
-
-        <config-file target="*-Info.plist" parent="NSBluetoothPeripheralUsageDescription">
-            <string>This app requires bluetooth access to function properly.</string>
-        </config-file>
-        
         
         <preference name="BLUETOOTH_USAGE_DESCRIPTION" default=" " />
+        
         <config-file target="*-Info.plist" parent="NSBluetoothPeripheralUsageDescription">
-
             <string>$BLUETOOTH_USAGE_DESCRIPTION</string>
-
         </config-file>
 
         <config-file target="*-Info.plist" parent="NSBluetoothAlwaysUsageDescription">
