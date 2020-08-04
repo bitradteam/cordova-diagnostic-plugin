@@ -79,7 +79,7 @@
 
         <framework src="CoreBluetooth.framework" />
         
-        <preference name="BLUETOOTH_USAGE_DESCRIPTION" default=" " />
+        <!-- <preference name="BLUETOOTH_USAGE_DESCRIPTION" default=" " />
         
         <config-file target="*-Info.plist" parent="NSBluetoothPeripheralUsageDescription">
             <string>$BLUETOOTH_USAGE_DESCRIPTION</string>
@@ -87,7 +87,7 @@
 
         <config-file target="*-Info.plist" parent="NSBluetoothAlwaysUsageDescription">
             <string>$BLUETOOTH_USAGE_DESCRIPTION</string>
-        </config-file>
+        </config-file> -->
         
         <!--END_MODULE BLUETOOTH-->
 
