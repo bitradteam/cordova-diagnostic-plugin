@@ -86,6 +86,19 @@
         <config-file target="*-Info.plist" parent="NSBluetoothAlwaysUsageDescription">
             <string>Esta aplicação teste 2</string>
         </config-file>
+        
+        <preference name="BLUETOOTH_USAGE_DESCRIPTION" default=" " />
+        <config-file target="*-Info.plist" parent="NSBluetoothPeripheralUsageDescription">
+
+            <string>$BLUETOOTH_USAGE_DESCRIPTION</string>
+
+        </config-file>
+
+        <config-file target="*-Info.plist" parent="NSBluetoothAlwaysUsageDescription">
+
+            <string>$BLUETOOTH_USAGE_DESCRIPTION</string>
+
+        </config-file>
 
         <!--END_MODULE BLUETOOTH-->
 
